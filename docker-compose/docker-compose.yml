@@ -24,9 +24,15 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+      start_period: 10s
 
   mlflow:
-    image: ghcr.io/mlflow/mlflow:${MLFLOW_VERSION}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MLFLOW_VERSION: ${MLFLOW_VERSION}
+
     restart: unless-stopped
 
     depends_on:
@@ -34,17 +40,15 @@ services:
         condition: service_healthy
 
     environment:
-      # PostgreSQL metadata store
       MLFLOW_BACKEND_STORE_URI: ${MLFLOW_BACKEND_STORE_URI}
 
-      # Hetzner Object Storage
       MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
       MLFLOW_ARTIFACTS_DESTINATION: ${MLFLOW_ARTIFACTS_DESTINATION}
+
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
 
-      # MLflow server
       MLFLOW_HOST: ${MLFLOW_HOST}
       MLFLOW_PORT: ${MLFLOW_PORT}
 
@@ -53,8 +57,6 @@ services:
       - -c
       - |
         set -e
-
-        pip install --no-cache-dir psycopg2-binary boto3
 
         exec mlflow server \
           --backend-store-uri "$${MLFLOW_BACKEND_STORE_URI}" \
@@ -77,3 +79,4 @@ services:
       interval: 10s
       timeout: 5s
       retries: 30
+      start_period: 30s
