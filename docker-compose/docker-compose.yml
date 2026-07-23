@@ -1,5 +1,6 @@
 volumes:
   pgdata:
+  authdata:
 
 services:
   postgres:
@@ -55,16 +56,38 @@ services:
       MLFLOW_SERVER_ALLOWED_HOSTS: "mlflow.invecorum.internal,mlflow.invecorum.internal:443,localhost,localhost:5000,127.0.0.1,127.0.0.1:5000"
       MLFLOW_SERVER_CORS_ALLOWED_ORIGINS: "https://mlflow.invecorum.internal"
 
+      # Built-in authentication
+      MLFLOW_AUTH_CONFIG_PATH: /run/mlflow-auth/basic_auth.ini
+      MLFLOW_AUTH_ADMIN_USERNAME: ${MLFLOW_AUTH_ADMIN_USERNAME:-admin}
+      MLFLOW_AUTH_ADMIN_PASSWORD: ${MLFLOW_AUTH_ADMIN_PASSWORD:?}
+      MLFLOW_FLASK_SERVER_SECRET_KEY: ${MLFLOW_FLASK_SERVER_SECRET_KEY:?}
+
       SERVICE_URL_MLFLOW_5000: ${SERVICE_URL_MLFLOW_5000}
       SERVICE_FQDN_MLFLOW_5000: ${SERVICE_FQDN_MLFLOW_5000}
+
+    volumes:
+      - authdata:/var/lib/mlflow-auth
 
     command:
       - /bin/bash
       - -c
       - |
-        set -e
+        set -euo pipefail
+        umask 077
+        mkdir -p /run/mlflow-auth
+
+        cat > "$${MLFLOW_AUTH_CONFIG_PATH}" <<EOF
+        [mlflow]
+        default_permission = NO_PERMISSIONS
+        database_uri = sqlite:////var/lib/mlflow-auth/basic_auth.db
+        admin_username = $${MLFLOW_AUTH_ADMIN_USERNAME}
+        admin_password = $${MLFLOW_AUTH_ADMIN_PASSWORD}
+        authorization_function = mlflow.server.auth:authenticate_request_basic_auth
+        grant_default_workspace_access = false
+        EOF
 
         exec mlflow server \
+          --app-name basic-auth \
           --backend-store-uri "$${MLFLOW_BACKEND_STORE_URI}" \
           --artifacts-destination "$${MLFLOW_ARTIFACTS_DESTINATION}" \
           --serve-artifacts \
