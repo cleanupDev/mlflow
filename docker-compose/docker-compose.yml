@@ -7,10 +7,10 @@ services:
     restart: unless-stopped
 
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      PGPORT: ${PGPORT}
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:?}
+      PGPORT: ${PGPORT:-5432}
 
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -19,7 +19,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -p ${PGPORT}",
+          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -p ${PGPORT:-5432}",
         ]
       interval: 5s
       timeout: 3s
@@ -31,7 +31,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        MLFLOW_VERSION: ${MLFLOW_VERSION}
+        MLFLOW_VERSION: ${MLFLOW_VERSION:-v3.14.0}
 
     restart: unless-stopped
 
@@ -40,17 +40,23 @@ services:
         condition: service_healthy
 
     environment:
-      MLFLOW_BACKEND_STORE_URI: ${MLFLOW_BACKEND_STORE_URI}
+      MLFLOW_BACKEND_STORE_URI: ${MLFLOW_BACKEND_STORE_URI:?}
 
-      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
-      MLFLOW_ARTIFACTS_DESTINATION: ${MLFLOW_ARTIFACTS_DESTINATION}
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL:?}
+      MLFLOW_ARTIFACTS_DESTINATION: ${MLFLOW_ARTIFACTS_DESTINATION:?}
 
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:?}
 
-      MLFLOW_HOST: ${MLFLOW_HOST}
-      MLFLOW_PORT: ${MLFLOW_PORT}
+      MLFLOW_HOST: 0.0.0.0
+      MLFLOW_PORT: 5000
+
+      MLFLOW_SERVER_ALLOWED_HOSTS: "mlflow.invecorum.internal,mlflow.invecorum.internal:443,localhost,localhost:5000,127.0.0.1,127.0.0.1:5000"
+      MLFLOW_SERVER_CORS_ALLOWED_ORIGINS: "https://mlflow.invecorum.internal"
+
+      SERVICE_URL_MLFLOW_5000: ${SERVICE_URL_MLFLOW_5000}
+      SERVICE_FQDN_MLFLOW_5000: ${SERVICE_FQDN_MLFLOW_5000}
 
     command:
       - /bin/bash
@@ -62,11 +68,13 @@ services:
           --backend-store-uri "$${MLFLOW_BACKEND_STORE_URI}" \
           --artifacts-destination "$${MLFLOW_ARTIFACTS_DESTINATION}" \
           --serve-artifacts \
-          --host "$${MLFLOW_HOST}" \
-          --port "$${MLFLOW_PORT}"
+          --host 0.0.0.0 \
+          --port 5000 \
+          --allowed-hosts "$${MLFLOW_SERVER_ALLOWED_HOSTS}" \
+          --cors-allowed-origins "$${MLFLOW_SERVER_CORS_ALLOWED_ORIGINS}"
 
     expose:
-      - "${MLFLOW_PORT}"
+      - "5000"
 
     healthcheck:
       test:
@@ -74,7 +82,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:${MLFLOW_PORT}/health')",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health')",
         ]
       interval: 10s
       timeout: 5s
