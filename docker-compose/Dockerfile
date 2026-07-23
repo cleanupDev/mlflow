@@ -2,7 +2,7 @@ ARG MLFLOW_VERSION=v3.14.0
 
 FROM ghcr.io/mlflow/mlflow:${MLFLOW_VERSION}
 
-RUN MLFLOW_PY_VERSION="$(python -c 'import mlflow; print(mlflow.__version__)')" \
+RUN MLFLOW_PY_VERSION="$(python -c 'from importlib.metadata import version; print(version(\"mlflow\"))')" \
     && python -m pip install --no-cache-dir \
         "mlflow[auth]==${MLFLOW_PY_VERSION}" \
         psycopg2-binary \
